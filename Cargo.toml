@@ -1,0 +1,19 @@
+[package]
+name = "rhai-sci-repl"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+home = "0.5.5"
+rhai = { version = "1.15.1"} #, features = ["metadata"]}
+# rhai = { git = "https://github.com/rhaiscript/rhai.git" }
+rhai-sci = { version = "0.2.0" }
+rustyline = { version = "11" }
+reedline = { version = "0.22.0" }
+
+
+[[bin]]
+name = "rhai-sci-repl"
+# required-features = ["rustyline"]
