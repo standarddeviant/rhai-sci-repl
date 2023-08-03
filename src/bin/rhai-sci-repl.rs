@@ -12,6 +12,7 @@ use reedline::{DefaultPrompt, FileBackedHistory, Reedline, Signal, ExampleHighli
 // use reedline::{get_reedline_default_keybindings, Editor};
 use reedline::{default_emacs_keybindings, ColumnarMenu, DefaultCompleter, Emacs, KeyCode, KeyModifiers, ReedlineEvent, ReedlineMenu};
 use home::{home_dir};
+use shlex;
 
 
 use std::path::PathBuf;
@@ -19,13 +20,9 @@ use std::{env, fs::File, io::Read, path::Path, process::exit};
 
 const DEFAULT_HISTORY_FILE: &str = ".rhai-sci-repl-history";
 fn get_history_path() -> PathBuf {
-    /*
-    if let Some(hdir) = home_dir() {
-        if let Some(hpath) = hdir.join(".rhai-sci-repl-history") {
-            // return String::from(hpath)
-        }
+    if let Some(home) = home_dir() {
+        return home.join(".rhai-sci-repl-history");
     }
-    */
     return PathBuf::from(DEFAULT_HISTORY_FILE);
 }
 
@@ -68,15 +65,16 @@ fn print_help() {
     println!("help       => print this help");
     println!("quit, exit => quit");
     println!("keys       => print list of key bindings");
-    println!("history    => print lines history");
-    println!("!!         => repeat the last history line");
-    println!("!<#>       => repeat a particular history line");
-    println!("!<text>    => repeat the last history line starting with some text");
-    println!("!?<text>   => repeat the last history line containing some text");
+    // println!("history    => print lines history");
+    println!("!<os_cmd>  => run <os_cmd> as a separate OS process");
+    // println!("!!         => repeat the last history line");
+    // println!("!<#>       => repeat a particular history line");
+    // println!("!<text>    => repeat the last history line starting with some text");
+    // println!("!?<text>   => repeat the last history line containing some text");
     println!("whos       => print all variables in the scope");
     println!("strict     => toggle on/off Strict Variables Mode");
-    #[cfg(not(feature = "no_optimize"))]
-    println!("optimize   => toggle on/off script optimization");
+    // #[cfg(not(feature = "no_optimize"))]
+    // println!("optimize   => toggle on/off script optimization");
     #[cfg(feature = "metadata")]
     println!("functions  => print all functions defined");
     #[cfg(feature = "metadata")]
@@ -211,6 +209,7 @@ fn load_script_files(engine: &mut Engine) {
 fn setup_editor() -> Reedline {
     // vector of strings for highlighter/autocomplete support
     let commands = vec![
+        "!".into(),
         "?".into(),
         "argmax".into(),
         "argmin".into(),
@@ -230,6 +229,9 @@ fn setup_editor() -> Reedline {
         "flatten".into(),
         "fliplr".into(),
         "flipud".into(),
+        "fns".into(),
+        "for".into(),
+        "functions".into(),
         "help".into(),
         "hessenberg".into(),
         "history".into(),
@@ -273,6 +275,7 @@ fn setup_editor() -> Reedline {
         "numel".into(),
         "ones".into(),
         "prctile".into(),
+        "print".into(),
         "prod".into(),
         "pwd".into(),
         "qr".into(),
@@ -341,6 +344,10 @@ fn setup_editor() -> Reedline {
         .with_completer(completer)
         .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
         .with_edit_mode(edit_mode);
+
+    if let Err(e) = line_editor.enable_bracketed_paste() {
+        println!("doh! {e:?}");
+    }
 
     return line_editor;
 }
@@ -443,15 +450,60 @@ mod sample_functions {
     }
 }
 
-use std::fs;
+use std::{fs, process};
 
-fn ls_fn() {
+
+fn os_cmd_fn(os_cmd_str: &str) {
+    match shlex::split(os_cmd_str) {
+        Some(args) => {
+            if 0 == args.len() {
+                println!("args")
+            }
+            let program: &String = &args[0];
+            let program_args: Vec<&String> = args[1..].iter().collect();
+            /*
+            let program = &args[0].clone().as_str();
+            let args: Vec<&String> = args[1..].iter().collect();
+            let mut proc = process::Command::new(program).args(args);
+            */
+            match process::Command::new(&program).args(program_args).status() {
+                Ok(_status) => {}, /*println!("Process finished Ok"), */
+                Err(e) => println!("ERR: {e:?}")
+            }
+        }
+        None => println!("No args available from -->{os_cmd_str}<--")
+    }
+}
+
+fn cd_fn(path: &str) {
+    let path = Path::new(path);
+    match env::set_current_dir(path) {
+        Ok(p) => pwd_fn(),
+        Err(e) => println!("ERR: {e:?}")
+    }
+}
+
+fn ls_fn(cmd: &str) {
     let paths = fs::read_dir("./").unwrap();
 
     for path in paths {
         println!("Name: {}", path.unwrap().path().display())
     }
 }
+
+fn pwd_fn() {
+    match env::current_dir() {
+        Ok(pwd) => println!("{:#?}", pwd),
+        Err(e) => println!("ERR: {e:?}")
+    }
+}
+
+fn pretty_print_whos(scope: &Scope) {
+    for (name, is_const, value) in scope.iter() {
+        println!("name = {name}, is_const = {is_const}, value = {value:?}");
+    }
+}
+ 
 
 fn main() {
     let title = format!("Rhai REPL tool (version {})", env!("CARGO_PKG_VERSION"));
@@ -497,7 +549,7 @@ fn main() {
     let mut input = String::new();
     let mut replacement = None;
     let mut replacement_index = 0;
-    let mut history_offset = 1;
+    // let mut history_offset = 1;
 
     let mut main_ast = AST::empty();
     #[cfg(not(feature = "no_optimize"))]
@@ -578,6 +630,31 @@ fn main() {
             continue;
         }
 
+        if cmd.starts_with("!") {
+            os_cmd_fn(&cmd[1..]);
+            continue;
+        }
+
+        if cmd.starts_with("cd ") {
+            cd_fn(&cmd[3..]);
+            continue;
+        }
+        if cmd.starts_with("ls") {
+            ls_fn(cmd);
+            continue;
+        }
+        if scope.contains(cmd) {
+            let varname = cmd;
+            match scope.get(varname) {
+                // TODO - make pretty_print_dynamic functions with scope + var
+                Some(var) => {
+                    println!("=> {varname} : {} => {}", var.type_name(), var)
+                },
+                None => println!("ERR: Unable to locate {varname}")
+            };
+            continue;
+        }
+
         // Implement standard commands
         match cmd {
             "exit" | "quit" => break, // quit
@@ -589,8 +666,9 @@ fn main() {
                 print_keys();
                 continue;
             }
-            "ls" => {
-                ls_fn();
+            "pwd" => { 
+                pwd_fn();
+                continue;
             }
             /*
             "history" => {
@@ -635,7 +713,8 @@ fn main() {
                 continue;
             }
             "scope" | "whos" => {
-                println!("{scope}");
+                // TODO - make pretty_print_whos functions with scope
+                pretty_print_whos(&scope);
                 continue;
             }
             #[cfg(not(feature = "no_optimize"))]
@@ -649,22 +728,21 @@ fn main() {
                 println!("{ast:#?}\n");
                 continue;
             }
-            #[cfg(feature = "metadata")]
-            "functions" => {
+            // #[cfg(feature = "metadata")]
+            "functions" | "fns" => {
                 // print a list of all registered functions
                 for f in engine.gen_fn_signatures(false) {
                     println!("{f}")
                 }
 
-                #[cfg(not(feature = "no_function"))]
+                // #[cfg(not(feature = "no_function"))]
                 for f in main_ast.iter_functions() {
                     println!("{f}")
                 }
 
                 println!();
                 continue;
-            }
-            #[cfg(feature = "metadata")]
+            } 
             "json" => {
                 use std::io::Write;
 
