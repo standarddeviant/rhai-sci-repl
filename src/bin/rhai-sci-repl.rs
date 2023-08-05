@@ -15,6 +15,7 @@ use reedline::{default_emacs_keybindings, ColumnarMenu, DefaultCompleter, Emacs,
 use home::{home_dir};
 use shlex;
 
+use std::error::Error;
 use std::path::PathBuf;
 use std::{env, fs::File, io::Read, path::Path, process::exit};
 
@@ -24,6 +25,9 @@ struct REPL<'a> {
     ast: AST,
     optimize_level: rhai::OptimizationLevel
 }
+
+// impl REPL {
+// }
 
 const DEFAULT_HISTORY_FILE: &str = ".rhai-sci-repl-history";
 fn get_history_path() -> PathBuf {
@@ -484,35 +488,23 @@ fn os_cmd_fn(os_cmd_str: &str) {
     }
 }
 
-fn cd_fn(path: &str) {
-    let path = Path::new(path);
-    match env::set_current_dir(path) {
-        Ok(p) => pwd_fn(),
-        Err(e) => println!("ERR: {e:?}")
-    }
-}
-
-fn ls_fn(cmd: &str) {
-    os_cmd_fn("ls -hslt");
-    /*
-    let paths = fs::read_dir("./").unwrap();
-
-    for path in paths {
-        println!("Name: {}", path.unwrap().path().display())
-    }
-    */
-}
-
+/*
 fn pwd_fn() {
-    println!("OS = {}", env::consts::OS);
-    os_cmd_fn("pwd")
-    /*
-    match env::current_dir() {
-        Ok(pwd) => println!("{:#?}", pwd),
-        Err(e) => println!("ERR: {e:?}")
-    }
-    */
+    // os_cmd_fn("pwd")
+    let pwd = env::current_dir();
+    match pwd {
+        Ok(pwd) => {
+            match pwd.to_str() {
+                Some(s) => println!(" => {s}"),
+                _ => println!(" => <unable to stringify PathBuf={pwd:?}>")
+            }
+        }
+        Err(e) => {
+            println!("ERR: {e:?}");
+        }
+    };
 }
+*/
 
 
 fn pretty_print_dynamic(engine: &mut Engine, name: &str, value: Dynamic) {
@@ -708,13 +700,9 @@ fn main() {
             os_cmd_fn(&cmd[1..]);
             continue;
         }
-
-        if cmd.starts_with("cd ") {
-            cd_fn(&cmd[3..]);
-            continue;
-        }
-        if cmd.starts_with("ls") {
-            ls_fn(cmd);
+        /* TODO - handle these with an iter */
+        if cmd.starts_with("ls") | cmd.starts_with("cd") | cmd.starts_with("pwd") {
+            os_cmd_fn(cmd);
             continue;
         }
         if repl.scope.contains(cmd) {
@@ -738,10 +726,6 @@ fn main() {
             }
             "keys" => {
                 print_keys();
-                continue;
-            }
-            "pwd" => { 
-                pwd_fn();
                 continue;
             }
             /*
