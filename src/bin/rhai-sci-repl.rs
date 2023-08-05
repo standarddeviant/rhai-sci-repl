@@ -2,6 +2,7 @@ use rhai::plugin::*;
 use rhai::{Dynamic, Engine, EvalAltResult, Module, Scope, AST, INT};
 use rhai::packages::Package;
 use rhai_sci::SciPackage;
+use rhai_sci;
 
 // use rustyline::config::Builder;
 // use rustyline::error::ReadlineError;
@@ -14,9 +15,15 @@ use reedline::{default_emacs_keybindings, ColumnarMenu, DefaultCompleter, Emacs,
 use home::{home_dir};
 use shlex;
 
-
 use std::path::PathBuf;
 use std::{env, fs::File, io::Read, path::Path, process::exit};
+
+struct REPL<'a> {
+    engine: Engine,
+    scope: Scope<'a>,
+    ast: AST,
+    optimize_level: rhai::OptimizationLevel
+}
 
 const DEFAULT_HISTORY_FILE: &str = ".rhai-sci-repl-history";
 fn get_history_path() -> PathBuf {
@@ -300,10 +307,12 @@ fn setup_editor() -> Reedline {
         "zeros".into(),
     ];
 
+    /*
     let completer = Box::new(DefaultCompleter::new_with_wordlen(
         commands.clone(), 2)
     );
     let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
+    */
     // Set up the required keybindings
     // let mut keybindings = default_emacs_keybindings();
     // keybindings.add_binding(
@@ -316,7 +325,7 @@ fn setup_editor() -> Reedline {
     // );
 
     let mut keybindings = default_emacs_keybindings();
-    let completer = Box::new(DefaultCompleter::new_with_wordlen(commands.clone(), 2));
+    let completer = Box::new(DefaultCompleter::new_with_wordlen(commands.clone(), 1));
     // Use the interactive menu to select options from the completer
     let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
     // Set up the required keybindings
@@ -484,25 +493,81 @@ fn cd_fn(path: &str) {
 }
 
 fn ls_fn(cmd: &str) {
+    os_cmd_fn("ls -hslt");
+    /*
     let paths = fs::read_dir("./").unwrap();
 
     for path in paths {
         println!("Name: {}", path.unwrap().path().display())
     }
+    */
 }
 
 fn pwd_fn() {
+    println!("OS = {}", env::consts::OS);
+    os_cmd_fn("pwd")
+    /*
     match env::current_dir() {
         Ok(pwd) => println!("{:#?}", pwd),
         Err(e) => println!("ERR: {e:?}")
     }
+    */
 }
 
-fn pretty_print_whos(scope: &Scope) {
+
+fn pretty_print_dynamic(engine: &mut Engine, name: &str, value: Dynamic) {
+    let intrpcmd = format!("{name}.is_matrix()");
+    // match engine.eval::<bool>(intrpcmd.as_str()) {
+    // match rhai_sci::eval(script).eval::<bool>(intrpcmd.as_str()) {
+    // match engine.eval::<INT>(intrpcmd.as_str()) {
+    match engine.eval_expression::<String>(&intrpcmd) {
+        Ok(r) => println!("is_matrix = {r}"),
+        Err(e) => println!("ERR: {e:?}")
+    }
+    println!("name = {name}, value = {value:?}");
+    // Some(var) => {
+        // println!("=> {varname} : {} => {}", var.type_name(), var)
+    // },
+}
+
+fn pretty_print_whos(engine: &mut Engine, scope: &Scope) {
     for (name, is_const, value) in scope.iter() {
-        println!("name = {name}, is_const = {is_const}, value = {value:?}");
+        pretty_print_dynamic(engine, name, value);
     }
 }
+
+
+// fn engine_process_input(engine: &mut Engine, scope: &mut Scope, input: &str) -> Result<Dynamic, Box<EvalAltResult>>{
+fn engine_process_input(repl: &mut REPL, input: &str) -> Result<Dynamic, Box<EvalAltResult>> {
+    let mut main_ast = AST::empty();
+    #[cfg(not(feature = "no_optimize"))]
+    let mut ast_u = AST::empty();
+    let mut ast = AST::empty();
+    let mut optimize_level = rhai::OptimizationLevel::Simple;
+
+    repl.engine
+    .compile_with_scope(&repl.scope, &input)
+    .map_err(Into::into)
+    .and_then(|r| {
+        #[cfg(not(feature = "no_optimize"))]
+        {
+                ast_u = r.clone();
+                ast = repl.engine.optimize_ast(&repl.scope, r, optimize_level);
+        }
+
+        #[cfg(feature = "no_optimize")]
+        {
+            ast = r;
+        }
+
+        // Merge the AST into the main
+        main_ast += ast.clone();
+
+        // Evaluate
+        repl.engine.eval_ast_with_scope::<Dynamic>(&mut repl.scope, &main_ast)
+    })
+}
+ 
  
 
 fn main() {
@@ -555,6 +620,15 @@ fn main() {
     #[cfg(not(feature = "no_optimize"))]
     let mut ast_u = AST::empty();
     let mut ast = AST::empty();
+
+    // REPL object
+    let mut repl: REPL = REPL{
+        engine: engine,
+        scope: scope,
+        ast: ast,
+        optimize_level: optimize_level
+    };
+
 
     print_help();
 
@@ -643,12 +717,12 @@ fn main() {
             ls_fn(cmd);
             continue;
         }
-        if scope.contains(cmd) {
+        if repl.scope.contains(cmd) {
             let varname = cmd;
-            match scope.get(varname) {
+            match repl.scope.get(varname) {
                 // TODO - make pretty_print_dynamic functions with scope + var
-                Some(var) => {
-                    println!("=> {varname} : {} => {}", var.type_name(), var)
+                Some(varvalue) => {
+                    pretty_print_dynamic(&mut repl.engine, varname, varvalue.clone());
                 },
                 None => println!("ERR: Unable to locate {varname}")
             };
@@ -690,13 +764,13 @@ fn main() {
                 continue;
             }
             */
-            "strict" if engine.strict_variables() => {
-                engine.set_strict_variables(false);
+            "strict" if repl.engine.strict_variables() => {
+                repl.engine.set_strict_variables(false);
                 println!("Strict Variables Mode turned OFF.");
                 continue;
             }
             "strict" => {
-                engine.set_strict_variables(true);
+                repl.engine.set_strict_variables(true);
                 println!("Strict Variables Mode turned ON.");
                 continue;
             }
@@ -714,7 +788,7 @@ fn main() {
             }
             "scope" | "whos" => {
                 // TODO - make pretty_print_whos functions with scope
-                pretty_print_whos(&scope);
+                pretty_print_whos(&mut repl.engine, &repl.scope);
                 continue;
             }
             #[cfg(not(feature = "no_optimize"))]
@@ -725,13 +799,13 @@ fn main() {
             }
             "ast" => {
                 // print the last AST
-                println!("{ast:#?}\n");
+                println!("{:#?}\n", repl.ast);
                 continue;
             }
             // #[cfg(feature = "metadata")]
             "functions" | "fns" => {
                 // print a list of all registered functions
-                for f in engine.gen_fn_signatures(false) {
+                for f in repl.engine.gen_fn_signatures(false) {
                     println!("{f}")
                 }
 
@@ -746,7 +820,7 @@ fn main() {
             "json" => {
                 use std::io::Write;
 
-                let json = engine
+                let json = repl.engine
                     .gen_fn_metadata_with_ast_to_json(&main_ast, false)
                     .expect("Unable to generate JSON");
                 let mut f = std::fs::File::create("metadata.json")
@@ -818,29 +892,8 @@ fn main() {
             _ => (),
         }
 
-        match engine
-            .compile_with_scope(&scope, &input)
-            .map_err(Into::into)
-            .and_then(|r| {
-                #[cfg(not(feature = "no_optimize"))]
-                {
-                    ast_u = r.clone();
-
-                    ast = engine.optimize_ast(&scope, r, optimize_level);
-                }
-
-                #[cfg(feature = "no_optimize")]
-                {
-                    ast = r;
-                }
-
-                // Merge the AST into the main
-                main_ast += ast.clone();
-
-                // Evaluate
-                engine.eval_ast_with_scope::<Dynamic>(&mut scope, &main_ast)
-            }) {
-            Ok(result) if !result.is_unit() => {
+        match engine_process_input(&mut repl, &input) {
+           Ok(result) if !result.is_unit() => {
                 println!("=> {result:?}");
                 println!();
             }
