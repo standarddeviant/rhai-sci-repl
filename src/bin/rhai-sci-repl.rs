@@ -1,13 +1,14 @@
-use rhai::plugin::*;
+extern crate nalgebra;
+extern crate std;
+use std::any::TypeId;
+
+use rhai::{plugin::*, FLOAT, Array, Variant};
 use rhai::{Dynamic, Engine, EvalAltResult, Module, Scope, AST, INT};
 use rhai::packages::Package;
 use rhai_sci::SciPackage;
-use rhai_sci;
 
-// use rustyline::config::Builder;
-// use rustyline::error::ReadlineError;
-// use rustyline::history::{History, SearchDirection};
-// use rustyline::{Cmd, DefaultEditor, Event, EventHandler, KeyCode, KeyEvent, Modifiers, Movement};
+mod cmatrix;
+use cmatrix::{cpx, CMatrix, czeros};
 
 use reedline::{DefaultPrompt, FileBackedHistory, Reedline, Signal, ExampleHighlighter};
 // use reedline::{get_reedline_default_keybindings, Editor};
@@ -18,6 +19,24 @@ use shlex;
 use std::error::Error;
 use std::path::PathBuf;
 use std::{env, fs::File, io::Read, path::Path, process::exit};
+use std::fmt::{self, Display};
+
+fn pretty_print_dynamic(name: &str, v: &Dynamic) {
+    // println!("v.is_variant() = {}", v.is_variant());
+    // println!("v.is<CMatrix>() = {}", v.is::<CMatrix>());
+    // println!("v.type_name() = {}", v.type_name());
+    if v.is::<cpx>() {
+        let tmpv: cpx = v.clone().cast::<cpx>();
+        println!("{name} = ({}, {})", tmpv.re, tmpv.im);
+    }
+    else if v.is::<CMatrix>() {
+        let tmpv: CMatrix = v.clone().cast::<CMatrix>();
+        println!("{name} = {tmpv}");
+    }
+    else {
+        println!("{name} = {v}");
+    }
+}
 
 struct REPL<'a> {
     engine: Engine,
@@ -26,8 +45,48 @@ struct REPL<'a> {
     optimize_level: rhai::OptimizationLevel
 }
 
-// impl REPL {
-// }
+impl<'a> REPL<'a> {
+    // pub fn run(&mut self, txt: String) -> String {
+        // return self.engine.
+    // }
+    // fn engine_process_input(engine: &mut Engine, scope: &mut Scope, input: &str) -> Result<Dynamic, Box<EvalAltResult>>{
+    pub fn eval(&mut self, input: &str) -> Result<Dynamic, Box<EvalAltResult>> {
+
+        let mut main_ast = AST::empty();
+        #[cfg(not(feature = "no_optimize"))]
+        let mut ast_u = AST::empty();
+        let mut ast = AST::empty();
+        let mut optimize_level = rhai::OptimizationLevel::Simple;
+
+        self.engine
+        .compile_with_scope(&self.scope, &input)
+        .map_err(Into::into)
+        .and_then(|r| {
+            #[cfg(not(feature = "no_optimize"))]
+            {
+                ast_u = r.clone();
+                ast = self.engine.optimize_ast(&self.scope, r, optimize_level);
+            }
+
+            #[cfg(feature = "no_optimize")]
+            {
+                ast = r;
+            }
+
+            // Merge the AST into the main
+            main_ast += ast.clone();
+
+            // Evaluate
+            self.engine.eval_ast_with_scope::<Dynamic>(&mut self.scope, &main_ast)
+        })
+    }
+
+    fn pretty_print_whos(&mut self) {
+        for (name, _const, value) in self.scope.iter() {
+            pretty_print_dynamic(name, &value)
+        }
+    }
+}
 
 const DEFAULT_HISTORY_FILE: &str = ".rhai-sci-repl-history";
 fn get_history_path() -> PathBuf {
@@ -228,6 +287,7 @@ fn setup_editor() -> Reedline {
         "assert_eq".into(),
         "assert_ne".into(),
         "bounds".into(),
+        "cd".into(),
         "cummax".into(),
         "cummin".into(),
         "cumprod".into(),
@@ -303,6 +363,7 @@ fn setup_editor() -> Reedline {
         "svd".into(),
         "transpose".into(),
         "trapz".into(),
+        "type_of".into(),
         "union".into(),
         "unique".into(),
         "variance".into(),
@@ -329,9 +390,16 @@ fn setup_editor() -> Reedline {
     // );
 
     let mut keybindings = default_emacs_keybindings();
-    let completer = Box::new(DefaultCompleter::new_with_wordlen(commands.clone(), 1));
+    let completer = Box::new(
+        DefaultCompleter::new_with_wordlen(
+            commands.clone(), 1
+        )
+    );
     // Use the interactive menu to select options from the completer
-    let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
+    let completion_menu = Box::new(
+        ColumnarMenu::default()
+            .with_name("completion_menu")
+    );
     // Set up the required keybindings
     let mut keybindings = default_emacs_keybindings();
     keybindings.add_binding(
@@ -507,26 +575,6 @@ fn pwd_fn() {
 */
 
 
-fn pretty_print_dynamic(engine: &mut Engine, name: &str, value: Dynamic) {
-    let intrpcmd = format!("{name}.is_matrix()");
-    // match engine.eval::<bool>(intrpcmd.as_str()) {
-    // match rhai_sci::eval(script).eval::<bool>(intrpcmd.as_str()) {
-    // match engine.eval::<INT>(intrpcmd.as_str()) {
-    match engine.eval_expression::<String>(&intrpcmd) {
-        Ok(r) => println!("is_matrix = {r}"),
-        Err(e) => println!("ERR: {e:?}")
-    }
-    println!("name = {name}, value = {value:?}");
-    // Some(var) => {
-        // println!("=> {varname} : {} => {}", var.type_name(), var)
-    // },
-}
-
-fn pretty_print_whos(engine: &mut Engine, scope: &Scope) {
-    for (name, is_const, value) in scope.iter() {
-        pretty_print_dynamic(engine, name, value);
-    }
-}
 
 
 // fn engine_process_input(engine: &mut Engine, scope: &mut Scope, input: &str) -> Result<Dynamic, Box<EvalAltResult>>{
@@ -560,8 +608,6 @@ fn engine_process_input(repl: &mut REPL, input: &str) -> Result<Dynamic, Box<Eva
     })
 }
  
- 
-
 fn main() {
     let title = format!("Rhai REPL tool (version {})", env!("CARGO_PKG_VERSION"));
     println!("{title}");
@@ -594,6 +640,14 @@ fn main() {
 
     // Register sample functions
     engine.register_global_module(exported_module!(sample_functions).into());
+
+    // Register custom type with friendly name
+    engine.register_type_with_name::<CMatrix>("CMatrix")
+        .register_fn("czeros", czeros);
+
+    engine.register_type_with_name::<cpx>("cpx")
+        .register_fn("cpx", cpx::new);
+
 
     // Create scope
     let mut scope = Scope::new();
@@ -705,17 +759,6 @@ fn main() {
             os_cmd_fn(cmd);
             continue;
         }
-        if repl.scope.contains(cmd) {
-            let varname = cmd;
-            match repl.scope.get(varname) {
-                // TODO - make pretty_print_dynamic functions with scope + var
-                Some(varvalue) => {
-                    pretty_print_dynamic(&mut repl.engine, varname, varvalue.clone());
-                },
-                None => println!("ERR: Unable to locate {varname}")
-            };
-            continue;
-        }
 
         // Implement standard commands
         match cmd {
@@ -772,7 +815,7 @@ fn main() {
             }
             "scope" | "whos" => {
                 // TODO - make pretty_print_whos functions with scope
-                pretty_print_whos(&mut repl.engine, &repl.scope);
+                repl.pretty_print_whos();
                 continue;
             }
             #[cfg(not(feature = "no_optimize"))]
@@ -813,6 +856,7 @@ fn main() {
                 println!("Functions metadata written to `metadata.json`.");
                 continue;
             }
+            
             /*
             "!!" => {
                 match rl.history().iter().last() {
@@ -874,8 +918,23 @@ fn main() {
             }
             */
             _ => (),
+        } /* end match cmd */
+
+        /* check if the cmd should result in a simple print of a variable in scope */
+        if repl.scope.contains(cmd) {
+            let name = cmd;
+            if let Some(value) = repl.scope.get(name) {
+                pretty_print_dynamic(cmd, value);
+            }
+            /*
+            if let Some(val) = repl.scope.get_value::<(cmd) {
+                println!("val = {val:?}");
+            } */
+            // repl.engine.eval::<i64>(format!("print({cmd})").as_str());
+            continue;
         }
 
+        /* eval the statement in the engine */
         match engine_process_input(&mut repl, &input) {
            Ok(result) if !result.is_unit() => {
                 println!("=> {result:?}");
