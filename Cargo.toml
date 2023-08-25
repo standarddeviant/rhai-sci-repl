@@ -13,8 +13,11 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 home = "0.5.5"
-nalgebra = { version = "0.32.3" }
-rhai = { version = "1.15.1", features = ["bin-features"] }
+ndarray = { version = "0.15.6" }
+# ndarray-linalg = { version = "0.13", features = ["openblas-static"] }
+# nalgebra = { version = "0.32.3" }
+num-complex = { version = "0.4.4" }
+rhai = { version = "1.15.1", features = ["bin-features", "internals"] }
 rhai-sci = { version = "0.2.0" }
 rustyline = { version = "11" }
 reedline = { version = "0.22.0" }
@@ -22,8 +25,11 @@ shlex = { version = "1.1.0" }
 
 [build-dependencies]
 home = "0.5.5"
-nalgebra = { version = "0.32.3" }
-rhai = { version = "1.15.1", features = ["bin-features"] }
+ndarray = { version = "0.15.6" }
+# ndarray-linalg = { version = "0.13", features = ["openblas-static"] }
+# nalgebra = { version = "0.32.3" }
+num-complex = { version = "0.4.4" }
+rhai = { version = "1.15.1", features = ["bin-features", "internals"] }
 rhai-sci = { version = "0.2.0" }
 rustyline = { version = "11" }
 reedline = { version = "0.22.0" }

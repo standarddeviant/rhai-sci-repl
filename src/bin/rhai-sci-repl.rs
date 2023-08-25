@@ -1,14 +1,22 @@
-extern crate nalgebra;
+// extern crate nalgebra;
 extern crate std;
 use std::any::TypeId;
+use std::collections::HashSet;
+use std::iter::FromIterator;
 
-use rhai::{plugin::*, FLOAT, Array, Variant};
+use rhai::{plugin::*, FLOAT, Array, Variant, Token, get_next_token, TokenizeState};
 use rhai::{Dynamic, Engine, EvalAltResult, Module, Scope, AST, INT};
 use rhai::packages::Package;
 use rhai_sci::SciPackage;
 
 mod cmatrix;
-use cmatrix::{cpx, CMatrix, czeros};
+use cmatrix::*;
+
+mod rmatrix;
+use rmatrix::*;
+
+use ndarray;
+use ndarray::{ScalarOperand, ArrayBase, OwnedRepr};
 
 use reedline::{DefaultPrompt, FileBackedHistory, Reedline, Signal, ExampleHighlighter};
 // use reedline::{get_reedline_default_keybindings, Editor};
@@ -22,20 +30,37 @@ use std::{env, fs::File, io::Read, path::Path, process::exit};
 use std::fmt::{self, Display};
 
 fn pretty_print_dynamic(name: &str, v: &Dynamic) {
-    // println!("v.is_variant() = {}", v.is_variant());
-    // println!("v.is<CMatrix>() = {}", v.is::<CMatrix>());
-    // println!("v.type_name() = {}", v.type_name());
-    if v.is::<cpx>() {
-        let tmpv: cpx = v.clone().cast::<cpx>();
-        println!("{name} = ({}, {})", tmpv.re, tmpv.im);
-    }
-    else if v.is::<CMatrix>() {
-        let tmpv: CMatrix = v.clone().cast::<CMatrix>();
-        println!("{name} = {tmpv}");
+    /* special print rules */
+    if v.is_variant() {
+        if v.is::<cpx>() {
+            let tmpv: cpx = v.clone().cast::<cpx>();
+            println!("{name} = ({}, {})", tmpv.re, tmpv.im);
+        }
+        else if v.is::<RVector>() {
+            let tmpv: RVector= v.clone().cast::<RVector>();
+            println!("{name} = \n{tmpv}");
+        }
+        else if v.is::<RMatrix>() {
+            let tmpv: RMatrix= v.clone().cast::<RMatrix>();
+            println!("{name} = \n{tmpv}");
+        }
+        else if v.is::<CVector>() {
+            let tmpv: CVector= v.clone().cast::<CVector>();
+            println!("{name} = \n{tmpv}");
+        }
+        else if v.is::<CMatrix>() {
+            let tmpv: CMatrix= v.clone().cast::<CMatrix>();
+            println!("{name} = \n{tmpv}");
+        }
+        println!("DBG: type_name = {}", v.type_name());
     }
     else {
         println!("{name} = {v}");
     }
+
+    // if v.is::<ndarray::Array<f64, ndarray::Ix2>>() {
+    //     println!("hmmmmm, ArrayBase????");
+    // }
 }
 
 struct REPL<'a> {
@@ -82,8 +107,17 @@ impl<'a> REPL<'a> {
     }
 
     fn pretty_print_whos(&mut self) {
-        for (name, _const, value) in self.scope.iter() {
-            pretty_print_dynamic(name, &value)
+        let unique_names: HashSet<&str> = HashSet::from_iter(
+            self.scope.iter_raw().map(
+                |(name, _const, _value)| name
+            )
+        );
+        let mut unique_names: Vec<_> = Vec::from_iter(unique_names.iter());
+        unique_names.sort();
+        for name in unique_names {
+            if let Some(value) = self.scope.get_value(name) {
+                pretty_print_dynamic(name, &value)
+            }
         }
     }
 }
@@ -575,6 +609,12 @@ fn pwd_fn() {
 */
 
 
+fn register_custom_operators(engine: &mut Engine) -> &Engine {
+    let tmp_engine = engine.register_custom_operator(
+        ".+", 255)
+    .expect("failed registering .+");
+    return tmp_engine;
+}
 
 
 // fn engine_process_input(engine: &mut Engine, scope: &mut Scope, input: &str) -> Result<Dynamic, Box<EvalAltResult>>{
@@ -607,6 +647,28 @@ fn engine_process_input(repl: &mut REPL, input: &str) -> Result<Dynamic, Box<Eva
         repl.engine.eval_ast_with_scope::<Dynamic>(&mut repl.scope, &main_ast)
     })
 }
+
+
+// fn custom_on_parse_token(token: Token, pos: Position, state: TokenizeState) -> Token {
+//     let p = pos.to_string();
+//     println!("t = -->{token}<-- @ p = {p}, state = {state:?}");
+//     let out_token = match token {
+//         Token::Period => {
+//             token.clone()
+//         },
+//         Token::Multiply => {
+//             token.clone()
+//         },
+//         _ => token.clone()
+//     };
+
+//     // prev_token = token;
+//     return out_token;
+// }
+
+
+
+
  
 fn main() {
     let title = format!("Rhai REPL tool (version {})", env!("CARGO_PKG_VERSION"));
@@ -618,6 +680,12 @@ fn main() {
 
     // Initialize scripting engine
     let mut engine = Engine::new();
+    /*
+    engine.register_custom_operator(
+        ".*", 255)
+    .expect("failed registering .*");
+    let mut engine = engine;
+    */
 
     #[cfg(not(feature = "no_module"))]
     #[cfg(not(feature = "no_std"))]
@@ -626,8 +694,8 @@ fn main() {
     // Setup Engine
     #[cfg(not(feature = "no_optimize"))]
     engine.set_optimization_level(rhai::OptimizationLevel::None);
-
     engine.register_global_module(SciPackage::new().as_shared_module());
+
 
     // Set a file module resolver without caching
     #[cfg(not(feature = "no_module"))]
@@ -641,13 +709,28 @@ fn main() {
     // Register sample functions
     engine.register_global_module(exported_module!(sample_functions).into());
 
-    // Register custom type with friendly name
-    engine.register_type_with_name::<CMatrix>("CMatrix")
-        .register_fn("czeros", czeros);
+    // register custom operator @ for matrix mul
+    engine.register_custom_operator("@", 100)
+        .expect("unable to register custom operator, @ (matmul)");
 
-    engine.register_type_with_name::<cpx>("cpx")
-        .register_fn("cpx", cpx::new);
+    // register real vec/mat helpers
+    engine = rvec_rmat_register_functions(engine);
 
+    // register complex vec/mat helpers
+    engine = cvec_cmat_register_functions(engine);
+
+    // engine.register_type_with_name::<RVector>("RVector");
+    // engine.register_type_with_name::<RMatrix>("RMatrix");
+
+    // .register_custom_operator(".*", 255)
+    // .set_fast_operators(false)
+    // .register_fn(".*", celmul)
+    // .re
+    // .register_indexer_get(cmatrix_indexer_get_one)
+    // .register_fn("index", cindex)
+    //.register_indexer_get(CArray::get);
+    // fn get_field(&mut self, index: i64) -> i64 {
+    // self.fields[index as usize]
 
     // Create scope
     let mut scope = Scope::new();
@@ -937,7 +1020,7 @@ fn main() {
         /* eval the statement in the engine */
         match engine_process_input(&mut repl, &input) {
            Ok(result) if !result.is_unit() => {
-                println!("=> {result:?}");
+                pretty_print_dynamic("", &result);
                 println!();
             }
             Ok(_) => (),
