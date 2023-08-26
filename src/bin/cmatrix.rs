@@ -1,7 +1,7 @@
 
 // use nalgebra::DimName;
 use num_complex::Complex;
-use rhai::Engine;
+use rhai::{Engine, FLOAT};
 
 use ndarray::{Array, ArrayD, Shape, IxDynImpl, Ix1, Ix2, Dim, Ix, IxDyn, Array2, Array1};
 use ndarray::linalg::{general_mat_mul, general_mat_vec_mul};
@@ -62,8 +62,34 @@ pub fn cvec_cmat_register_functions(mut engine: Engine) -> Engine {
 
     // Register custom type with friendly name
     engine.register_type_with_name::<CMatrix>("CMatrix")
-        .register_fn("czeros", cvzeros)
         .register_fn("czeros", cmzeros)
+        .register_fn("+", |a: CMatrix, b: i64| a + b as f64)
+        .register_fn("-", |a: CMatrix, b: i64| a - b as f64)
+        .register_fn("*", |a: CMatrix, b: i64| a * b as f64)
+        .register_fn("/", |a: CMatrix, b: i64| a / b as f64)
+        .register_fn("+", |a: i64, b: CMatrix| cpx::new(a as f64, 0.0) + b)
+        .register_fn("-", |a: i64, b: CMatrix| cpx::new(a as f64, 0.0) - b)
+        .register_fn("*", |a: i64, b: CMatrix| cpx::new(a as f64, 0.0) * b)
+        .register_fn("/", |a: i64, b: CMatrix| cpx::new(a as f64, 0.0) / b)
+
+        .register_fn("+", |a: CMatrix, b: f64| a + b)
+        .register_fn("-", |a: CMatrix, b: f64| a - b)
+        .register_fn("*", |a: CMatrix, b: f64| a * b)
+        .register_fn("/", |a: CMatrix, b: f64| a / b)
+        .register_fn("+", |a: f64, b: CMatrix| cpx::new(a, 0.0) + b)
+        .register_fn("-", |a: f64, b: CMatrix| cpx::new(a, 0.0) - b)
+        .register_fn("*", |a: f64, b: CMatrix| cpx::new(a, 0.0) * b)
+        .register_fn("/", |a: f64, b: CMatrix| cpx::new(a, 0.0) / b)
+
+        .register_fn("+", |a: CMatrix, b: cpx| a + b)
+        .register_fn("-", |a: CMatrix, b: cpx| a - b)
+        .register_fn("*", |a: CMatrix, b: cpx| a * b)
+        .register_fn("/", |a: CMatrix, b: cpx| a / b)
+        .register_fn("+", |a: cpx, b: CMatrix| a + b)
+        .register_fn("-", |a: cpx, b: CMatrix| a - b)
+        .register_fn("*", |a: cpx, b: CMatrix| a * b)
+        .register_fn("/", |a: cpx, b: CMatrix| a / b)
+ 
         .register_fn("+", |a: CMatrix, b: CMatrix| a + b)
         .register_fn("-", |a: CMatrix, b: CMatrix| a - b)
         .register_fn("*", |a: CMatrix, b: CMatrix| a * b)

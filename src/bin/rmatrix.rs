@@ -58,9 +58,9 @@ pub fn rvec_rmat_register_functions(mut engine: Engine) -> Engine {
         .register_fn("range", RVector::range)
         ;
 
-
     engine.register_type_with_name::<RMatrix>("RMatrix")
         .register_fn("zeros", rmzeros)
+        .register_fn("reshape", reshape_rmat_rmat)
         .register_fn("+", |a: RMatrix, b: i64| a + b as f64)
         .register_fn("-", |a: RMatrix, b: i64| a - b as f64)
         .register_fn("*", |a: RMatrix, b: i64| a * b as f64)
@@ -82,7 +82,6 @@ pub fn rvec_rmat_register_functions(mut engine: Engine) -> Engine {
         .register_fn("*", |a: RMatrix, b: RMatrix| a * b)
         .register_fn("/", |a: RMatrix, b: RMatrix| a / b)
         .register_fn("@", rmatmul)
-        // .register_fn("reshape", reshape_cmat_cmat)
         ;
 
     return engine;
