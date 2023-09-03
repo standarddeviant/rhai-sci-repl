@@ -5,6 +5,9 @@ use rhai::{Engine, FLOAT};
 
 use ndarray::{Array, ArrayD, Shape, IxDynImpl, Ix1, Ix2, Dim, Ix, IxDyn, Array2, Array1};
 use ndarray::linalg::{general_mat_mul, general_mat_vec_mul};
+// use std::
+// ndarray-rand = "0.14.0"
+use ndarray_rand::rand_distr::Standard;
 // let array = Array::from_vec(vec![1., 2., 3., 4.]);
 
 pub type cpx = Complex<f64>;
@@ -13,8 +16,10 @@ pub type CVector = Array1<cpx>;
 pub type CMatrix = Array2<cpx>;
 
 // TODO - explore meta programming rust to autogen functions like these...
-pub fn cvzeros(i0:i64        ) ->  CVector { CVector::zeros(Ix1(i0 as usize             )) }
-pub fn cmzeros(i0:i64, i1:i64) ->  CMatrix { CMatrix::zeros(Ix2(i0 as usize, i1 as usize)) }
+pub fn zeros_cvec(i0:i64        ) -> CVector { CVector::zeros(Ix1(i0 as usize             )) }
+pub fn zeros_cmat(i0:i64, i1:i64) -> CMatrix { CMatrix::zeros(Ix2(i0 as usize, i1 as usize)) }
+pub fn rand_cvec(i0: i64)         -> CVector { CVector::zeros(Ix1(i0 as usize)) }
+pub fn rand_cmat(i0: i64, i1:i64) -> CMatrix { CMatrix::zeros(Ix2(i0 as usize, i1 as usize)) }
 
 // pub fn celadd(a: CMatrix, b: CMatrix) -> CMatrix { /* TODO - check shape? */ a + b }
 // pub fn celsub(a: CMatrix, b: CMatrix) -> CMatrix { /* TODO - check shape? */ a - b }
@@ -55,14 +60,17 @@ pub fn cvec_cmat_register_functions(mut engine: Engine) -> Engine {
 
     // Register custom type with friendly name
     engine.register_type_with_name::<CVector>("CVector")
-        .register_fn("czeros", cvzeros)
+        .register_fn("czeros", zeros_cvec)
         .register_fn("reshape", reshape_cvec_cmat)
         .register_fn("arange", reshape_cvec_cmat)
         ;
 
     // Register custom type with friendly name
     engine.register_type_with_name::<CMatrix>("CMatrix")
-        .register_fn("czeros", cmzeros)
+        .register_fn("czeros", zeros_cmat)
+        .register_fn("crand", rand_cvec)
+        .register_fn("crand", rand_cmat)
+        .register_fn("reshape", reshape_cmat_cmat)
         .register_fn("+", |a: CMatrix, b: i64| a + b as f64)
         .register_fn("-", |a: CMatrix, b: i64| a - b as f64)
         .register_fn("*", |a: CMatrix, b: i64| a * b as f64)
@@ -95,7 +103,6 @@ pub fn cvec_cmat_register_functions(mut engine: Engine) -> Engine {
         .register_fn("*", |a: CMatrix, b: CMatrix| a * b)
         .register_fn("/", |a: CMatrix, b: CMatrix| a / b)
         .register_fn("@", cmatmul)
-        .register_fn("reshape", reshape_cmat_cmat)
         //pub fn reshape_cvec_cmat(a: CVector, i0: i64, i1: i64) -> CMatrix {
         ;
 

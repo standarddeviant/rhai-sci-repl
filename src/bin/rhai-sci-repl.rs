@@ -3,6 +3,7 @@ extern crate std;
 use std::any::TypeId;
 use std::collections::HashSet;
 use std::iter::FromIterator;
+use std::{fs, process};
 
 use rhai::{plugin::*, FLOAT, Array, Variant, Token, get_next_token, TokenizeState};
 use rhai::{Dynamic, Engine, EvalAltResult, Module, Scope, AST, INT};
@@ -52,7 +53,7 @@ fn pretty_print_dynamic(name: &str, v: &Dynamic) {
             let tmpv: CMatrix= v.clone().cast::<CMatrix>();
             println!("{name} = \n{tmpv}");
         }
-        println!("DBG: type_name = {}", v.type_name());
+        // println!("DBG: type_name = {}", v.type_name());
     }
     else {
         println!("{name} = {v}");
@@ -565,7 +566,6 @@ mod sample_functions {
     }
 }
 
-use std::{fs, process};
 
 
 fn os_cmd_fn(os_cmd_str: &str) {
