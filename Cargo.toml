@@ -14,7 +14,8 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 home = "0.5.5"
 ndarray = { version = "0.15.6" }
-ndarray-rand = "0.14.0"
+rand = "0.8.5"
+# ndarray-rand = "0.14.0"
 # ndarray-linalg = { version = "0.13", features = ["openblas-static"] }
 # nalgebra = { version = "0.32.3" }
 num-complex = { version = "0.4.4" }
@@ -27,7 +28,8 @@ shlex = { version = "1.1.0" }
 [build-dependencies]
 home = "0.5.5"
 ndarray = { version = "0.15.6" }
-ndarray-rand = "0.14.0"
+rand = "0.8.5"
+#ndarray-rand = "0.14.0"
 # ndarray-linalg = { version = "0.13", features = ["openblas-static"] }
 # nalgebra = { version = "0.32.3" }
 num-complex = { version = "0.4.4" }
