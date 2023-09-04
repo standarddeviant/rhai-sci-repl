@@ -21,6 +21,10 @@ pub type CMatrix = Array2<cpx>;
 // use ndarray_rand::rand_distr::Uniform;
 use rand::prelude::*;
 
+#[path = "./rmatrix.rs"] mod rmatrix;
+use rmatrix::{RVector};
+// use crate::rmatrix::RVector;
+
 /* basic complex random */
 struct CpxRandUniform { relo:f64, rehi:f64, imlo:f64, imhi:f64, n: usize, count: usize}
 impl CpxRandUniform {
@@ -95,12 +99,54 @@ pub fn cvec_cmat_register_functions(mut engine: Engine) -> Engine {
         .register_fn("cpx", |re:i64, im:f64| cpx::new(re as f64, im as f64))
         .register_fn("cpx", |re:f64, im:i64| cpx::new(re as f64, im as f64))
 
+        // cpx pow
+        .register_fn("**"  , |a:cpx, b:cpx| a.powc(b) )
+        .register_fn("**"  , |a:cpx, b:i64| a.powf(b as FLOAT) )
+        .register_fn("**"  , |b:i64, a:cpx| cpx::new(b as FLOAT, 0.0).powc(a))
+        .register_fn("**"  , |a:cpx, b:f64| a.powf(b) )
+        .register_fn("**"  , |b:f64, a:cpx| cpx::new(b, 0.0).powc(a) )
+        .register_fn("**"  , 
+            |a:cpx, b: RVector| {
+                a * CVector::from_iter(b.map(
+                    |rval: &f64|
+                    cpx::new(a.re.powf(*rval), a.im.powf(*rval))
+                ))
+            }
+        )
+        .register_fn("**"  , 
+            |b: RVector, a:cpx| {
+                a * CVector::from_iter(b.map(
+                    |rval: &f64|
+                    cpx::new(rval.powf(a.re), rval.powf(a.im))
+                ))
+            }
+        )
+
+
         // cpx +
         .register_fn("+"  , |a:cpx, b:cpx| a + b)
         .register_fn("+"  , |a:cpx, b:i64| cpx::new(a.re+(b as FLOAT), a.im+(b as FLOAT)))
         .register_fn("+"  , |b:i64, a:cpx| cpx::new(a.re+(b as FLOAT), a.im+(b as FLOAT)))
         .register_fn("+"  , |a:cpx, b:f64| cpx::new(a.re+(b as FLOAT), a.im+(b as FLOAT)))
         .register_fn("+"  , |b:f64, a:cpx| cpx::new(a.re+(b as FLOAT), a.im+(b as FLOAT)))
+        .register_fn("*"  , 
+            |a:cpx, b: RVector| {
+                a * CVector::from_iter(b.map(
+                    |rval: &f64|
+                    cpx::new(a.re*rval, a.im*rval)
+                ))
+            }
+        )
+        .register_fn("*"  , 
+            |b: RVector, a:cpx| {
+                a * CVector::from_iter(b.map(
+                    |rval: &f64|
+                    cpx::new(rval*a.re, rval*a.im)
+                ))
+            }
+        )
+
+
 
         // cpx -
         .register_fn("-"  , |a:cpx, b:cpx| a - b)
@@ -108,13 +154,23 @@ pub fn cvec_cmat_register_functions(mut engine: Engine) -> Engine {
         .register_fn("-"  , |b:i64, a:cpx| cpx::new(a.re-(b as FLOAT), a.im-(b as FLOAT)))
         .register_fn("-"  , |a:cpx, b:f64| cpx::new(a.re-(b as FLOAT), a.im-(b as FLOAT)))
         .register_fn("-"  , |b:f64, a:cpx| cpx::new(a.re-(b as FLOAT), a.im-(b as FLOAT)))
+        .register_fn("*"  , 
+            |a:cpx, b: RVector| {
+                a * CVector::from_iter(b.map(
+                    |rval: &f64|
+                    cpx::new(a.re*rval, a.im*rval)
+                ))
+            }
+        )
+        .register_fn("*"  , 
+            |b: RVector, a:cpx| {
+                a * CVector::from_iter(b.map(
+                    |rval: &f64|
+                    cpx::new(rval*a.re, rval*a.im)
+                ))
+            }
+        )
 
-        // cpx pow
-        .register_fn("**"  , |a:cpx, b:cpx| a.powc(b) )
-        .register_fn("**"  , |a:cpx, b:i64| a.powf(b as FLOAT) )
-        .register_fn("**"  , |b:i64, a:cpx| cpx::new(b as FLOAT, 0.0).powc(a))
-        .register_fn("**"  , |a:cpx, b:f64| a.powf(b) )
-        .register_fn("**"  , |b:f64, a:cpx| cpx::new(b, 0.0).powc(a) )
 
         // cpx *
         .register_fn("*"  , |a:cpx, b:cpx| a * b)
@@ -122,6 +178,22 @@ pub fn cvec_cmat_register_functions(mut engine: Engine) -> Engine {
         .register_fn("*"  , |b:i64, a:cpx| cpx::new(a.re*(b as FLOAT), a.im*(b as FLOAT)))
         .register_fn("*"  , |a:cpx, b:f64| cpx::new(a.re*(b as FLOAT), a.im*(b as FLOAT)))
         .register_fn("*"  , |b:f64, a:cpx| cpx::new(a.re*(b as FLOAT), a.im*(b as FLOAT)))
+        .register_fn("*"  , 
+            |a:cpx, b: RVector| {
+                a * CVector::from_iter(b.map(
+                    |rval: &f64|
+                    cpx::new(a.re*rval, a.im*rval)
+                ))
+            }
+        )
+        .register_fn("*"  , 
+            |b: RVector, a:cpx| {
+                a * CVector::from_iter(b.map(
+                    |rval: &f64|
+                    cpx::new(rval*a.re, rval*a.im)
+                ))
+            }
+        )
 
         // cpx /
         .register_fn("/"  , |a:cpx, b:cpx| a / b)
@@ -129,6 +201,22 @@ pub fn cvec_cmat_register_functions(mut engine: Engine) -> Engine {
         .register_fn("/"  , |b:i64, a:cpx| cpx::new(a.re/(b as FLOAT), a.im/(b as FLOAT)))
         .register_fn("/"  , |a:cpx, b:f64| cpx::new(a.re/(b as FLOAT), a.im/(b as FLOAT)))
         .register_fn("/"  , |b:f64, a:cpx| cpx::new(a.re/(b as FLOAT), a.im/(b as FLOAT)))
+        .register_fn("/"  , 
+            |a:cpx, b: RVector| {
+                a * CVector::from_iter(b.map(
+                    |rval: &f64|
+                    cpx::new(a.re/rval, a.im/rval)
+                ))
+            }
+        )
+        .register_fn("/"  , 
+            |b: RVector, a:cpx| {
+                a * CVector::from_iter(b.map(
+                    |rval: &f64|
+                    cpx::new(rval / a.re, rval / a.im)
+                ))
+            }
+        )
 
         // cpx abs/angle
         .register_fn("abs", |a:cpx| (a.re*a.re + a.im*a.im).sqrt())
@@ -141,6 +229,8 @@ pub fn cvec_cmat_register_functions(mut engine: Engine) -> Engine {
         .register_fn("opposite"  , |a:cpx| a.im )
         .register_fn("adjacent"  , |a:cpx| a.re)
         .register_fn("hypotenuse", |a:cpx| (a.re*a.re + a.im*a.im).sqrt())
+
+        // cpx w/ RVector
         ;
 
         // these don't make sense...
@@ -151,6 +241,31 @@ pub fn cvec_cmat_register_functions(mut engine: Engine) -> Engine {
 
     // Register custom type with friendly name
     engine.register_type_with_name::<CVector>("CVector")
+        .register_fn("+", |a:i64, b: CVector| CVector::from_iter(b.map(|cval| (*cval) + cpx::new(a as FLOAT, 0.0))))
+        .register_fn("+", |b: CVector, a:i64| CVector::from_iter(b.map(|cval| (*cval) + cpx::new(a as FLOAT, 0.0))))
+        .register_fn("+", |a:f64, b: CVector| CVector::from_iter(b.map(|cval| (*cval) + cpx::new(a, 0.0))))
+        .register_fn("+", |b: CVector, a:f64| CVector::from_iter(b.map(|cval| (*cval) + cpx::new(a, 0.0))))
+
+        .register_fn("-", |a:i64, b: CVector| CVector::from_iter(b.map(|cval| (*cval) - cpx::new(a as FLOAT, 0.0))) )
+        .register_fn("-", |b: CVector, a:i64| CVector::from_iter(b.map(|cval| (*cval) - cpx::new(a as FLOAT, 0.0))) )
+        .register_fn("-", |a:f64, b: CVector| CVector::from_iter(b.map(|cval| (*cval) - cpx::new(a, 0.0))) )
+        .register_fn("-", |b: CVector, a:f64| CVector::from_iter(b.map(|cval| (*cval) - cpx::new(a, 0.0))) )
+
+        .register_fn("*", |a:i64, b: CVector| CVector::from_iter(b.map(|cval| (*cval) * cpx::new(a as FLOAT, 0.0))) )
+        .register_fn("*", |b: CVector, a:i64| CVector::from_iter(b.map(|cval| (*cval) * cpx::new(a as FLOAT, 0.0))) )
+        .register_fn("*", |a:f64, b: CVector| CVector::from_iter(b.map(|cval| (*cval) * cpx::new(a, 0.0))) )
+        .register_fn("*", |b: CVector, a:f64| CVector::from_iter(b.map(|cval| (*cval) * cpx::new(a, 0.0))) )
+
+        .register_fn("**", |a:i64, b: CVector| CVector::from_iter(b.map(|cval| cpx::new(a as FLOAT, 0.0).powc(*cval) )))
+        .register_fn("**", |b: CVector, a:i64| CVector::from_iter(b.map(|cval| (*cval).powf(a as FLOAT) )))
+        .register_fn("**", |a:f64, b: CVector| CVector::from_iter(b.map(|cval| cpx::new(a, 0.0).powc(*cval) )))
+        .register_fn("**", |b: CVector, a:f64| CVector::from_iter(b.map(|cval| (*cval).powf(a) )))
+
+        .register_fn("/", |a:i64, b: CVector| CVector::from_iter(b.map(|cval| a as FLOAT / (*cval) )))
+        .register_fn("/", |b: CVector, a:i64| CVector::from_iter(b.map(|cval| (*cval) / a as FLOAT)))
+        .register_fn("/", |a:f64, b: CVector| CVector::from_iter(b.map(|cval| a / (*cval) )))
+        .register_fn("/", |b: CVector, a:f64| CVector::from_iter(b.map(|cval| (*cval) / a)))
+
         .register_fn("czeros", zeros_cvec)
         .register_fn("reshape", reshape_cvec_cmat)
         .register_fn("crange", reshape_cvec_cmat)

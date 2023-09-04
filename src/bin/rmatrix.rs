@@ -47,6 +47,31 @@ pub fn flatten_rmat(a: RMatrix) -> RVector {
 
 pub fn rvec_rmat_register_functions(mut engine: Engine) -> Engine {
     engine.register_type_with_name::<RVector>("RVector")
+        .register_fn("+", |a:i64, b: RVector| RVector::from_iter(b.map(|rval| *rval + a as FLOAT)))
+        .register_fn("+", |b: RVector, a:i64| RVector::from_iter(b.map(|rval| *rval + a as FLOAT)))
+        .register_fn("+", |a:f64, b: RVector| RVector::from_iter(b.map(|rval| *rval + a)))
+        .register_fn("+", |b: RVector, a:f64| RVector::from_iter(b.map(|rval| *rval + a)))
+
+        .register_fn("-", |a:i64, b: RVector| RVector::from_iter(b.map(|rval| *rval - a as FLOAT)))
+        .register_fn("-", |b: RVector, a:i64| RVector::from_iter(b.map(|rval| *rval - a as FLOAT)))
+        .register_fn("-", |a:f64, b: RVector| RVector::from_iter(b.map(|rval| *rval - a)))
+        .register_fn("-", |b: RVector, a:f64| RVector::from_iter(b.map(|rval| *rval - a)))
+
+        .register_fn("*", |a:i64, b: RVector| RVector::from_iter(b.map(|rval| *rval * a as FLOAT)))
+        .register_fn("*", |b: RVector, a:i64| RVector::from_iter(b.map(|rval| *rval * a as FLOAT)))
+        .register_fn("*", |a:f64, b: RVector| RVector::from_iter(b.map(|rval| *rval * a)))
+        .register_fn("*", |b: RVector, a:f64| RVector::from_iter(b.map(|rval| *rval * a)))
+
+        .register_fn("**", |a:i64, b: RVector| RVector::from_iter(b.map(|rval| (a as FLOAT).powf(*rval) )))
+        .register_fn("**", |b: RVector, a:i64| RVector::from_iter(b.map(|rval| (*rval).powf(a as FLOAT) )))
+        .register_fn("**", |a:f64, b: RVector| RVector::from_iter(b.map(|rval| a.powf(*rval) )))
+        .register_fn("**", |b: RVector, a:f64| RVector::from_iter(b.map(|rval| (*rval).powf(a) )))
+
+        .register_fn("/", |a:i64, b: RVector| RVector::from_iter(b.map(|rval| a as FLOAT / *rval )))
+        .register_fn("/", |b: RVector, a:i64| RVector::from_iter(b.map(|rval| *rval / a as FLOAT)))
+        .register_fn("/", |a:f64, b: RVector| RVector::from_iter(b.map(|rval| a / (*rval) )))
+        .register_fn("/", |b: RVector, a:f64| RVector::from_iter(b.map(|rval| (*rval) / a)))
+
         .register_fn("zeros", rvzeros)
         .register_fn("reshape", reshape_rvec_rmat)
         .register_fn("range", 
